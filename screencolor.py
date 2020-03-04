@@ -1,0 +1,152 @@
+# encoding: utf-8
+#!/usr/bin/python
+# colordialog.py
+
+"""
+author: HuangBaiFu
+欢迎交流:275702919
+last edited: 2020/3/3
+"""
+
+#使用utf8 编码
+# from importlib import imp
+# from imp import reload
+# import sys
+# reload(sys)
+# sys.setdefaultencoding('utf8')
+
+from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtWidgets import QApplication, QPushButton, QColorDialog, QLineEdit, QLabel
+from PyQt5.QtCore import QObject, Qt, QRect, QPoint
+from PyQt5.QtGui import QImage, QPixmap, QColor
+
+#win api
+# from ctypes import  windll
+# from ctypes.wintypes import *
+
+# def nativeEvent(self, eventType, message):
+#     msg2 = ctypes.wintypes.MSG.from_address(message.__int__())#ctypes.wintypes
+#     if msg2.message == 0x0312:
+#         print("成功")
+#         return False,message
+
+class ScreenColorWindow (QtWidgets.QWidget):
+    def __init__(self, parent= None):
+        QtWidgets.QWidget.__init__(self)
+        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+        # self.setWindowFlags(Qt.FramelessWindowHint)
+
+        # 全局热键注册
+        # windll.user32.RegisterHotKey()
+
+        self.setGeometry(1500, 300, 320, 40)
+        self.setWindowTitle('取色器 #按住 Alt 开始取色')
+
+        # self.img = QApplication.primaryScreen().grabWindow(QApplication.desktop().winId())
+        # self.img.save("screen_test.png", "png");
+        # 获取剪切板截图
+        # self.img = QtGui.QGuiApplication.primaryScreen().grabWindow(0)
+
+        # ui布局
+        self.button = QPushButton('颜色板', self)
+        self.button.setFocusPolicy(Qt.NoFocus)
+        self.button.move(240, 6)
+        self.button.clicked.connect(self.showDialog)
+        self.setFocus()
+        
+        color = QColor(0, 0, 0)
+        self.widget = QtWidgets.QWidget(self)
+        self.widget.setGeometry(170, 4, 50, 30)
+        self.widget.setStyleSheet('QWidget{background-color:%s}'%color.name())
+
+        self.q1Edit = QLineEdit(color.name(), self)
+        self.q1Edit.setGeometry(20, 4, 140, 30)
+
+        # 定时器
+        self.installEventFilter(self)
+        self.timer = QtCore.QTimer(self)
+        self.timer.timeout.connect(self.timerThisWin)
+
+        # 细节放大窗口
+        self.detile_view = SetPathWindow()
+        self.detile_view.show()
+
+    def timerThisWin(self):
+        # 根据鼠标坐标获取某图像上的颜色
+        pos = QtGui.QCursor.pos()
+        curX = pos.x()
+        curY = pos.y()
+
+        self.detile_view.move(curX - 110, curY - 110)
+
+        QsImg = self.img.toImage()
+        # QsImg = QImage()
+        # QsImg.load("screen_test.png", "png")
+
+        QImg = QsImg.copy(QRect(QPoint(curX - 25, curY - 25), QPoint(curX + 25, curY + 25)))
+        QImg = QImg.scaled(100, 100)
+        # QImg.save('detaill.png', format='png', quality=100)
+
+        pixmap = QPixmap.fromImage(QImg)
+
+        self.detile_view.flushImage(pixmap)
+
+        rgb = self.img.toImage().pixel(curX, curY)
+        red10 = QtGui.qRed(rgb)
+        green10 = QtGui.qGreen(rgb)
+        blue10 = QtGui.qBlue(rgb)
+        colorname = QColor(red10, green10, blue10).name()
+
+        self.q1Edit.setText(colorname + ' (%s,%s,%s)'%(red10, green10, blue10))
+        self.widget.setStyleSheet('QWidget {background-color:%s}'%colorname)
+    def eventFilter(self, obj, event): 
+       if (event.type() == QtCore.QEvent.Close):
+           self.timer.stop()
+           self.detile_view.close()
+       elif (event.type() == QtCore.QEvent.FocusIn):
+           print("get color begin")
+       elif (event.type() == QtCore.QEvent.FocusOut):
+           self.timer.stop()
+       elif (event.type() == QtCore.QEvent.KeyPress):
+           if (event.key() == Qt.Key_Alt and event.modifiers()):
+              self.img = QApplication.primaryScreen().grabWindow(QApplication.desktop().winId())   
+              # self.img.save('screen_test.png', format='png', quality=100)         
+              self.timer.start(100)
+       elif (event.type() == QtCore.QEvent.KeyRelease):
+           if (event.key() == Qt.Key_Alt):
+               self.timer.stop()
+               self.detile_view.move(10000, 10000)
+       return QObject.eventFilter(self, obj, event)
+    def showDialog(self):
+        col = QColorDialog.getColor()
+        if col.isValid():
+            self.q1Edit.setText(col.name())
+            self.widget.setStyleSheet('QWidget {background-color:%s}'%col.name())
+
+#细节图ui 单独面板
+class SetPathWindow(QLabel):
+    def __init__(self):
+        super(SetPathWindow, self).__init__()
+        self.initUi()
+ 
+    def initUi(self):
+        # self.setWindowTitle("路径配置")
+        # self.setText("点击创建mvc文件：")
+        self.setGeometry(600, 600, 100, 100)
+        flags = Qt.FramelessWindowHint
+        flags |= QtCore.Qt.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        # self.move(500, 350)
+        QImg = QImage()
+    def flushImage(self, img):
+        self.setPixmap(img)
+
+if __name__ == "__main__":
+    import sys
+    app = QApplication(sys.argv)
+
+    qb = ScreenColorWindow()
+    qb.show()
+
+    sys.exit(app.exec_())
